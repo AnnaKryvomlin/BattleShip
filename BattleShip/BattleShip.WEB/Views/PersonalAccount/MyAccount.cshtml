@@ -1,0 +1,33 @@
+﻿@model BattleShip.WEB.Models.PersonalAccountViewModel
+
+@{
+    ViewData["Title"] = "MyAccount";
+}
+
+<div class="board-account">
+    <h4 class="mx-4">
+        @Model.UserName
+    </h4>
+</div>
+<div class="board-account">
+    @foreach (var game in Model.Games)
+    {
+
+        @if (game.Status == "In Process")
+        {
+            <div class="card">
+                <div class="card-body">
+                    <a href='@Url.Action("Game","Game",new {id=game.Id })'>
+                       Game#@game.Id 
+                       </a>
+                       @if (ViewBag.PlayerId == game.CurrentMovePlayerId)
+                       {
+                           <span style="color: lawngreen"> - ваш ход</span>
+                        }
+                </div>
+            </div>
+        }
+
+    }
+</div>
+
