@@ -1,0 +1,252 @@
+﻿@model IEnumerable<BattleShip.WEB.Models.RecordsView>
+
+
+<div class="alert alert-info fade out" id="bsalert">
+    <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
+    <strong>Игра завершена!</strong> <span id="result"></span>
+</div>
+
+<div class="row mt-4">
+    <div class="col-6">
+        <div class="create-field">
+            <table class="battlefield-table my-field">
+                @for (int y = 1; y <= 10; y++)
+                {
+                    <tr class="battlefield-row">
+                        @for (int x = 1; x <= 10; x++)
+                        {
+                            <td class="battlefield-cell">
+                                <div class="battlefield-cell-content my-cell" data-y=@y data-x=@x></div>
+                            </td>
+                        }
+                    </tr>
+                }
+            </table>
+        </div>
+        <button id="stop-game" class="m-3 btn btn-outline-warning">Сдаться</button>
+    </div>
+
+    <div class="col-6">
+        <div class="create-field">
+            <table class="battlefield-table enemy-field">
+                @for (int y = 1; y <= 10; y++)
+                {
+                    <tr class="battlefield-row">
+                        @for (int x = 1; x <= 10; x++)
+                        {
+                            <td class="battlefield-cell">
+                                <button class="battlefield-cell-content enemy-cell btn" data-y=@y data-x=@x></button>
+                            </td>
+                        }
+                    </tr>
+                }
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4 records">
+    <div id="container-records">
+        @foreach(var record in Model)
+        {
+            <p> @record.PlayerMove </p>
+        }
+    </div>
+</div>
+@section scripts {
+    <script type="text/javascript">
+        var currentMovePlayerId = @ViewBag.CurrentMove;
+        var gameId = @ViewBag.GameId;
+        var playerId = @ViewBag.PlayerId;
+        $(function () {
+            $.ajax({
+                type: "GET",
+                url: "/Game/GetMyCoordinates/" + gameId,
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (coordinates) {
+                    if (coordinates != null) {
+                        $.each(coordinates, function (index) {
+                            if (coordinates[index].mark && !coordinates[index].haveShip) {
+                                var cell = $('.my-cell').filter(function () {
+                                    return +$(this).attr("data-y") === coordinates[index].y && +$(this).attr("data-x") === coordinates[index].x;
+                                })
+                                cell.addClass('mark-empty');
+                            }
+                            if (coordinates[index].haveShip && !coordinates[index].mark) {
+                                var cell = $('.my-cell').filter(function () {
+                                    return +$(this).attr("data-y") === coordinates[index].y && +$(this).attr("data-x") === coordinates[index].x;
+                                })
+                                cell.addClass('ship-on-field');
+                            }
+
+                            if (coordinates[index].haveShip && coordinates[index].mark) {
+                                var cell = $('.my-cell').filter(function () {
+                                    return +$(this).attr("data-y") === coordinates[index].y && +$(this).attr("data-x") === coordinates[index].x;
+                                })
+                                cell.addClass('mark-ship');
+                            }
+                        });
+                    }
+                    else {
+                        alert("Something went wrong");
+                    }
+                },
+                failure: function (response) {
+                    alert(response.responseText);
+                },
+                error: function (response) {
+                    alert(response.responseText);
+                }
+            });
+
+            $.ajax({
+                type: "GET",
+                url: "/Game/GetEnemyCoordinates/" + gameId,
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (coordinates) {
+                    if (coordinates != null) {
+                        $.each(coordinates, function (index) {
+                            if (coordinates[index].mark && !coordinates[index].haveShip) {
+                                var cell = $('.enemy-cell').filter(function () {
+                                    return +$(this).attr("data-y") === coordinates[index].y && +$(this).attr("data-x") === coordinates[index].x;
+                                })
+                                cell.replaceWith(function () {
+                                    return $('<div>', {
+                                        html: $(this).html()
+                                    }).addClass('mark-empty battlefield-cell-content')
+                                });
+                            }
+
+                            if (coordinates[index].haveShip && coordinates[index].mark) {
+                                var cell = $('.enemy-cell').filter(function () {
+                                    return +$(this).attr("data-y") === coordinates[index].y && +$(this).attr("data-x") === coordinates[index].x;
+                                })
+                                cell.replaceWith(function () {
+                                    return $('<div>', {
+                                        html: $(this).html()
+                                    }).addClass('mark-ship battlefield-cell-content')
+                                });
+                            }
+                        });
+                    }
+                    else {
+                        alert("Something went wrong");
+                    }
+                },
+                failure: function (response) {
+                    alert(response.responseText);
+                },
+                error: function (response) {
+                    alert(response.responseText);
+                }
+            });
+
+
+            checkCurrentMove(currentMovePlayerId);
+
+            var connection = new signalR.HubConnectionBuilder()
+                .withUrl("/gamehub")
+                .build();
+
+            connection.on("TakeAShot", function (result, x, y, currentPlayerId) {
+                var cell = $('.enemy-cell').filter(function () {
+                    return +$(this).attr("data-y") === y && +$(this).attr("data-x") === x;
+                })
+                cell.removeClass('enemy-cell');
+
+                if (result) {
+                    cell.replaceWith(function () {
+                        return $('<div>', {
+                            html: $(this).html()
+                        }).addClass('mark-ship battlefield-cell-content')
+                    });
+                }
+
+                else {
+                    cell.replaceWith(function () {
+                        return $('<div>', {
+                            html: $(this).html()
+                        }).addClass('mark-empty battlefield-cell-content')
+                    });
+                }
+                checkCurrentMove(currentPlayerId);
+            });
+
+            // Finish game
+            connection.on("Finished", function (message) {
+                $('.enemy-cell').prop('disabled', true);
+                $('#result').text(message);
+                $(".alert").toggleClass('in out');
+                setTimeout(function () {
+                    $(".alert").toggleClass('fade out');
+                    var url = "/PersonalAccount/MyAccount"
+                    window.location.href = url;
+                }, 5000);
+            });
+
+            connection.on("StopGame", function (message) {
+                $('.enemy-cell').prop('disabled', true);
+                $('#result').text(message);
+                $(".alert").removeClass('fade out');
+                $(".alert").addClass('in out');
+                setTimeout(function () {
+                    $(".alert").addClass('fade out');
+                    var url = "/PersonalAccount/MyAccount"
+                    window.location.href = url;
+                }, 5000);
+            });
+
+            function timerDecrement() {
+                setTimeout(function () {
+                    time = 5000;
+                    if (time > 0) timerDecrement();
+                }, 1000);                
+            }
+
+            // New record
+            connection.on("NewRecord", function (record) {
+                $('#container-records').append("<p>" + record + "</p>")
+            });
+
+            $('.enemy-cell').on('click', function () {
+                var y = +$(this).attr("data-y");
+                var x = +$(this).attr("data-x");
+                connection.invoke("TakeAShot", playerId, gameId, x, y);
+            });
+
+            $('#stop-game').on('click', function () {
+                connection.invoke("TrowUpTheTowel", gameId);
+            });
+
+            connection.on("ShowAShot", function (x, y, currentPlayerId) {
+                var cell = $('.my-cell').filter(function () {
+                    return +$(this).attr("data-y") === y && +$(this).attr("data-x") === x;
+                })
+                if (cell.hasClass('ship-on-field')) {
+                    cell.removeClass('ship-on-field');
+                    cell.addClass('mark-ship');
+                }
+                else
+                    cell.addClass('mark-empty');
+                checkCurrentMove(currentPlayerId);
+            });
+
+            connection.start().then(function () {
+                connection.invoke("JoinGame", gameId);
+            });
+
+          
+        });
+
+
+        var checkCurrentMove = function (id) {
+            if (playerId == id)
+                $('.enemy-cell').prop('disabled', false);
+            else
+                $('.enemy-cell').prop('disabled', true);
+        };
+
+    </script>
+}

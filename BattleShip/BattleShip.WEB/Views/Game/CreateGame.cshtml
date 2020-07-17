@@ -1,0 +1,190 @@
+﻿
+@{
+    ViewData["Title"] = "CreateGame";
+}
+
+<h1>Create Game</h1>
+
+<div class="row ship-game">
+    <div class="col-5">
+        <div class="draggable ship-box ui-widget ui-widget-content" data-length="4" style="width: 168px; height: 40px"></div>
+        <br />
+        <div class="draggable ship-box ui-widget ui-widget-content" data-length="3" style="width: 126px; height: 40px"></div>
+        <br />
+        <div class="draggable ship-box ui-widget ui-widget-content" data-length="3" style="width: 126px; height: 40px"></div>
+        <br />
+        <div class="draggable ship-box ui-widget ui-widget-content" data-length="2" style="width: 84px; height: 40px"></div>
+        <br />
+        <div class="draggable ship-box ui-widget ui-widget-content" data-length="2" style="width: 84px; height: 40px"></div>
+        <br />
+        <div class="draggable ship-box ui-widget ui-widget-content" data-length="2" style="width: 84px; height: 40px"></div>
+        <br />
+        <div class="draggable ship-box ui-widget ui-widget-content" data-length="1" style="width: 42px; height: 40px"></div>
+        <br />
+        <div class="draggable ship-box ui-widget ui-widget-content" data-length="1" style="width: 42px; height: 40px"></div>
+        <br />
+        <div class="draggable ship-box ui-widget ui-widget-content" data-length="1" style="width: 42px; height: 40px"></div>
+        <br />
+        <div class="draggable ship-box ui-widget ui-widget-content" data-length="1" style="width: 42px; height: 40px"></div>
+    </div>
+    <div class="col-7">
+        <div class="create-field">
+            <table class="battlefield-table">
+                @for (int y = 1; y <= 10; y++)
+                {
+                    <tr class="battlefield-row">
+                        @for (int x = 1; x <= 10; x++)
+                        {
+                            <td class="battlefield-cell">
+                                <div class="battlefield-cell-content" data-y=@y data-x=@x></div>
+                            </td>
+                        }
+                    </tr>
+                }
+            </table>
+        </div>
+        <br />
+        <button id="CreateNewGame" type="button" class="btn btn-outline-dark" disabled>Create Game</button>
+        <button id="FindGame" type="button" class="btn btn-outline-dark" disabled>Find Game</button>
+        <button type="button" class="ml-3 btn btn-outline-dark">Reset</button>
+    </div>
+</div>
+
+
+@section scripts {
+    <script type="text/javascript">
+        "use strict";
+        $(function () {
+            $('.draggable').draggable({
+                containment: ".ship-game",
+                cursor: 'move',
+                revert: "invalid",
+                revertDuration: 1,
+                greedy: true
+            });
+
+        var shipSizeCount = 20;
+
+            $(".battlefield-cell-content").droppable({
+                accept: function (el) {
+                    return !$(this).hasClass('ship-on-field');
+                },
+            over: function (event, ui)
+            {
+                $(this).addClass('hover');
+            },
+            out: function (event, ui)
+            {
+                $(this).removeClass('hover');
+            },
+            drop: function (event, ui)
+            {
+                $(this).removeClass('hover');
+                $(this).addClass('start');
+
+                var $draggable = $(ui.draggable);
+                var length = $draggable.data("length");
+                var i = 0;
+                var myflag = false;
+
+                $(".battlefield-cell-content").each(function (index, element) {
+                    if ($(element).hasClass("start")) {
+                        myflag = true;
+                    }
+                    if (myflag == false) {
+                        return;
+                    }
+                    else {
+                        $(element).addClass("ship-on-field");
+                         $(element).attr('data-ship_type', length);
+                       $(element).removeClass('battlefield-cell-content');
+                        ++i;
+                        --shipSizeCount;
+                        if (i == length) {
+                            return false;
+                        }
+                    }
+                });
+                $(this).removeClass('start');
+                if (shipSizeCount == 0) {
+                    $('#CreateNewGame').prop('disabled', false);
+                    $('#FindGame').prop('disabled', false);
+                }
+
+                $(this).append(ui.draggable);
+                 ui.draggable.draggable({ disabled: true });
+                 ui.draggable.draggable('option', 'revert', true);
+            }
+        });
+        });
+
+        // Create game
+        $('#CreateNewGame').on('click', function () {
+
+            var ships = findShips(jQuery);
+            $.ajax({
+                type: "POST",
+                data: JSON.stringify(ships),
+                url: '/Game/CreateGame',
+                contentType: "application/json"
+            })
+        });
+
+        // Find game
+        $('#FindGame').on('click', function () {
+
+            var ships = findShips(jQuery);
+            $.ajax({
+                type: "POST",
+                data: JSON.stringify(ships),
+                url: '/Game/FindGame',
+                contentType: "application/json"
+            })
+        });
+
+
+        // For creating field with ships.
+        var findShips = function ($) {
+            var shipCount = 0;
+            var ships = new Array(10);
+            var lengthCounter = 1;
+            var y = 0;
+            var x = 0;
+            $(".ship-on-field").each(function (index, element) {
+                if (lengthCounter > 1) {
+                    --lengthCounter;
+                    return;
+                }
+                var length = $(element).data('ship_type');
+                lengthCounter = length;
+                var coordinates = new Array(length);
+                x = $(element).data('x');
+                y = $(element).data('y');
+                var i = 0;
+                $.each(coordinates, function () {
+                    coordinates[i] = { X: x, Y: y };
+                    i++;
+                    x++;
+                });
+                ships[shipCount] = {
+                    Size: length,
+                    Coordinates: coordinates
+                };
+                ++shipCount;
+            });
+
+            // test
+            $.each(ships, function () {
+                console.log("size: " + this.Size);
+                console.log("Coordinates:");
+                $.each(this.Coordinates, function () {
+                    console.log("x - " + this.X + ", y - " + this.Y);
+                });
+                console.log(" ");
+            });
+
+            return ships;
+        };
+
+    </script>
+}
